@@ -54,6 +54,19 @@ class MultiheadAttention(nn.Module):
 
         return output
 
+## Position wise Feed Forward Network ##
+
+
+class PositonWiseForward(nn.Module):
+    def __init__(self, d_model, d_diff):
+        super(PositonWiseForward, self).__init__()
+        self.fc1 = nn.Linear(d_model, d_diff)
+        self.fc2 = nn.Linear(d_diff, d_model)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.fc2(self.relu(self.fc1(x)))
+
 
 class Transformer:
 
