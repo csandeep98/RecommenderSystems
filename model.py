@@ -68,24 +68,54 @@ class PositonWiseForward(nn.Module):
         return self.fc2(self.relu(self.fc1(x)))
 
 
-class Transformer:
+class PositionalEncoding(nn.Module):
+    def __init__(self, d_model, max_seq_len):
+        super(PositionalEncoding, self).__init__()
+        pe = torch.zeros(max_seq_len, d_model)
+        position = torch.arange(0, max_seq_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * -(math.log(10000.0) / d_model)
+                             )
+        pe[:, 0::2] = torch.sin(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term)
 
-    def foo():
-        return
+        self.register_buffer('pe', pe.unsqueeze(0))
+
+    def forward(self, x):
+        return x + self.pe[:, :x.size(1)]
 
 
-class Encoder(nn.Module):
-    def __init__(self, params):
-        super(Encoder, self).__init__()
-        self.input = input_dim
-        self.output_dim = output_dim
-        self.activation = nn.sigmoid()
+class EncoderLayer(nn.Module):
+    def __init__(self, d_model, num_heads, d_ff, dropout):
+        self.self_attn = MultiheadAttention(d_model, num_heads)
+        self.feed_forward = PositonWiseForward(d_model, d_ff)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.dropout = nn.Dropout(dropout)
 
-        return
+    def forward(self, x, mask):
+        attn_output = self.self_attn(x, x, x, mask)
+        x = self.norm1(x + self.dropout(attn_output))
+        ff_output = self.feed_forward(x)
+        x = self.norm2(x + self.dropout(attn_output))
+        return x
 
 
-class Decoder(nn.Module):
-    def __init__(self, params):
-        super(Encoder, self).__init__()
+class DecoderLayer(nn.Module):
+    def __init__(self, d_model, num_heads, d_ff, dropout):
+        super(DecoderLayer, self).__init__()
+        self.self_attn = MultiheadAttention(d_model, num_heads)
+        self.cross_attn = MultiheadAttention(d_model, num_heads)
+        self.feed_forward = PositonWiseForward(d_model, d_ff)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        self.norm3 = nn.LayerNorm(d_model)
+        self.dropout = dropout
 
-        return
+    def forward(self, x, enc_output, src_mask, tgt_mask):
+        attn_output = self.self_attn(x, x, x, tgt_mask)
+        x = self.norm1(x + self.dropout(attn_output))
+        attn_output = self.cross_attn(x, enc_output, enc_output, src_mask)
+        x = self.norm2(x + self.dropout(attn_output))
+        ff_output = self.feed_forward(x)
+        x = self.norm3(x + self.dropout(ff_output))
+        return x
