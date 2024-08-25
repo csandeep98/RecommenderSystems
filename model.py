@@ -144,3 +144,24 @@ class Transformer(nn.Module):
         seq_length = tgt.size(1)
         nopeak_mask = (
             1 - torch.triu(torch.ones(1, seq_length, seq_length), diagonal=1)).bool()
+        tgt_mask = tgt_mask & nopeak_mask
+        return src_mask, tgt_mask
+
+    def forward(self, src, tgt):
+        src_mask, tgt_mask = self.generate_mask(src, tgt)
+        src_embedded = self.dropout(
+            self.positional_encoding(self.encoder_embedding(src)))
+        tgt_embedded = self.dropout(
+            self.positional_encodin(self.decoder_embedding(tgt)))
+
+        enc_output = src_embedded
+        for enc_layer in self.encoder_layers:
+            enc_output = enc_layer(enc_output, src_mask)
+
+        dec_output = tgt_embedded
+        for dec_layer in self.decoder_layers:
+            dec_output = dec_layer(dec_output, tgt_mask)
+
+        output = self.fc(dec_output)
+
+        return output
