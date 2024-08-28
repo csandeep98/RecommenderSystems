@@ -6,8 +6,9 @@ import seaborn as sns
 import math
 import torch.nn as nn
 import torch.functional as F
-from sklearn.preprocessing import StandardaccakldlkmScaler
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
+import torch.optim as optim
 
 # for the transformer architecture we need some functions
 
@@ -57,9 +58,9 @@ class MultiheadAttention(nn.Module):
 ## Position wise Feed Forward Network ##
 
 
-class PositonWiseForward(nn.Module):
+class PositionWiseForward(nn.Module):
     def __init__(self, d_model, d_diff):
-        super(PositonWiseForward, self).__init__()
+        super(PositionWiseForward, self).__init__()
         self.fc1 = nn.Linear(d_model, d_diff)
         self.fc2 = nn.Linear(d_diff, d_model)
         self.relu = nn.ReLU()
@@ -86,8 +87,9 @@ class PositionalEncoding(nn.Module):
 
 class EncoderLayer(nn.Module):
     def __init__(self, d_model, num_heads, d_ff, dropout):
+        super(EncoderLayer, self).__init__()
         self.self_attn = MultiheadAttention(d_model, num_heads)
-        self.feed_forward = PositonWiseForward(d_model, d_ff)
+        self.feed_forward = PositionWiseForward(d_model, d_ff)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout = nn.Dropout(dropout)
@@ -105,11 +107,11 @@ class DecoderLayer(nn.Module):
         super(DecoderLayer, self).__init__()
         self.self_attn = MultiheadAttention(d_model, num_heads)
         self.cross_attn = MultiheadAttention(d_model, num_heads)
-        self.feed_forward = PositonWiseForward(d_model, d_ff)
+        self.feed_forward = PositionWiseForward(d_model, d_ff)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
-        self.dropout = dropout
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, enc_output, src_mask, tgt_mask):
         attn_output = self.self_attn(x, x, x, tgt_mask)
@@ -152,7 +154,7 @@ class Transformer(nn.Module):
         src_embedded = self.dropout(
             self.positional_encoding(self.encoder_embedding(src)))
         tgt_embedded = self.dropout(
-            self.positional_encodin(self.decoder_embedding(tgt)))
+            self.positional_encoding(self.decoder_embedding(tgt)))
 
         enc_output = src_embedded
         for enc_layer in self.encoder_layers:
@@ -165,3 +167,37 @@ class Transformer(nn.Module):
         output = self.fc(dec_output)
 
         return output
+
+
+# prepare the sample data
+src_vocab_size = 5000
+tgt_vocab_size = 5000
+d_model = 512
+num_heads = 8
+num_layers = 6
+d_ff = 2048
+max_seq_length = 100
+dropout = 0.1
+
+transformer = Transformer(src_vocab_size, tgt_vocab_size, d_model, num_heads, num_layers, d_ff, max_seq_length,
+                          dropout)
+
+# generate the random sample data
+src_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
+tgt_data = torch.randint(1, src_vocab_size, (64, max_seq_length))
+
+# train the model
+criterion = nn.CrossEntropyLoss(ignore_index=0)
+optimizer = optim.Adam(transformer.parameters(),
+                       lr=0.0001, betas=(0.9, 0.98), eps=1e-9)
+
+transformer.train()
+
+for epoch in range(100):
+    optimizer.zero_grad()
+    output = transformer(src_data, tgt_data[:, :-1])
+    loss = criterion(output.contiguous().view(-1, tgt_vocab_size),
+                     tgt_data.contiguous().view(-1))
+    loss.backward()
+    optimizer.step()
+    print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
